@@ -5,10 +5,9 @@ import { footballApi, getTeamStatistics } from '../services/footballApi'
 interface MatchDisplayProps {
   team1: Team
   team2: Team
-  onReset: () => void
 }
 
-export default function MatchDisplay({ team1, team2, onReset }: MatchDisplayProps) {
+export default function MatchDisplay({ team1, team2 }: MatchDisplayProps) {
   const [headToHeadData, setHeadToHeadData] = useState<[number, number]>([0, 0])
   const [isLoadingH2H, setIsLoadingH2H] = useState(false)
   const [team1Stats, setTeam1Stats] = useState<TeamStats | null>(null)

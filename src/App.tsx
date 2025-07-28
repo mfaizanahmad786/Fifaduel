@@ -10,7 +10,6 @@ function App() {
   const [selectedLeague1, setSelectedLeague1] = useState('')
   const [selectedLeague2, setSelectedLeague2] = useState('')
   const [availableTeams, setAvailableTeams] = useState<{ [key: string]: Team[] }>({})
-  const [isLoadingTeams,setisLoadingTeams] = useState(false)
   const [team1, setTeam1] = useState<Team | null>(null)
   const [team2, setTeam2] = useState<Team | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -21,7 +20,6 @@ function App() {
       return
     }else{
       console.log("Fetching teams")
-      setisLoadingTeams(true)
 
       try {
       const teams = await footballApi.getTeamsByLeague(leagueKey)
@@ -34,8 +32,6 @@ function App() {
       }))
     } catch (error) {
       console.error(` Error fetching teams for ${leagueKey}:`, error)
-    } finally {
-      setisLoadingTeams(false)
     }
   }
 }
@@ -75,13 +71,6 @@ function App() {
     setIsGenerating(false)
   }
 
-  const resetMatch = () => {
-    setTeam1(null)
-    setTeam2(null)
-    setSelectedLeague1('')
-    setSelectedLeague2('')
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 text-white">
       <Header />
@@ -101,7 +90,6 @@ function App() {
           <MatchDisplay
             team1={team1}
             team2={team2}
-            onReset={resetMatch}
           />
         )}
 
