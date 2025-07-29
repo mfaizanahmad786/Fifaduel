@@ -6,6 +6,14 @@ import { leagues } from './data/mockData'
 import type { Team } from './types'
 import { footballApi } from './services/footballApi'
 
+// Cache expiration time (24 hours in milliseconds)
+const CACHE_EXPIRATION = 24 * 60 * 60 * 1000
+
+interface CachedTeamsData {
+  teams: { [key: string]: Team[] }
+  timestamp: number
+}
+
 function App() {
   const [selectedLeague1, setSelectedLeague1] = useState('')
   const [selectedLeague2, setSelectedLeague2] = useState('')
@@ -14,24 +22,78 @@ function App() {
   const [team2, setTeam2] = useState<Team | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
+  // Load teams from localStorage on component mount
+  useEffect(() => {
+    try {
+      const cachedData = localStorage.getItem('fifa-teams-cache')
+      if (cachedData) {
+        const parsedData: CachedTeamsData = JSON.parse(cachedData)
+        const now = Date.now()
+        
+        // Check if cache is still valid (not expired)
+        if (now - parsedData.timestamp < CACHE_EXPIRATION) {
+          setAvailableTeams(parsedData.teams)
+          console.log('✅ Loaded teams from localStorage:', Object.keys(parsedData.teams))
+        } else {
+          console.log('🕒 Cache expired, clearing old data')
+          localStorage.removeItem('fifa-teams-cache')
+        }
+      }
+    } catch (error) {
+      console.error('Error loading teams from localStorage:', error)
+      localStorage.removeItem('fifa-teams-cache') // Clear corrupted cache
+    }
+  }, [])
+
+  // Save teams to localStorage whenever availableTeams changes
+  useEffect(() => {
+    if (Object.keys(availableTeams).length > 0) {
+      try {
+        const cacheData: CachedTeamsData = {
+          teams: availableTeams,
+          timestamp: Date.now()
+        }
+        localStorage.setItem('fifa-teams-cache', JSON.stringify(cacheData))
+        console.log('💾 Saved teams to localStorage with timestamp')
+      } catch (error) {
+        console.error('Error saving teams to localStorage:', error)
+      }
+    }
+  }, [availableTeams])
+
+  // Optional: Clear cache function (can be called from console for debugging)
+  const clearTeamsCache = () => {
+    localStorage.removeItem('fifa-teams-cache')
+    setAvailableTeams({})
+    console.log('🗑️ Teams cache cleared')
+  }
+
+  // Make clearTeamsCache available globally for debugging
+  useEffect(() => {
+    (window as any).clearTeamsCache = clearTeamsCache
+    return () => {
+      delete (window as any).clearTeamsCache
+    }
+  }, [])
+
   const fetchTeamsIfNeeded = async (leagueKey: string) => {
     if(availableTeams[leagueKey] && availableTeams[leagueKey].length > 0){
-      console.log("Using Cache")
+      console.log(`✅ Using cached teams for ${leagueKey}`)
       return
     }else{
-      console.log("Fetching teams")
+      console.log(`🔄 Fetching teams for ${leagueKey} (API call)`)
 
       try {
       const teams = await footballApi.getTeamsByLeague(leagueKey)
       console.log(`✅ Teams fetched for ${leagueKey}:`, teams.length)
       
-      // Cache the teams
+      // Cache the teams in state (will auto-save to localStorage via useEffect)
       setAvailableTeams(prev => ({ 
         ...prev, 
         [leagueKey]: teams 
       }))
     } catch (error) {
-      console.error(` Error fetching teams for ${leagueKey}:`, error)
+      console.error(`❌ Error fetching teams for ${leagueKey}:`, error)
     }
   }
 }

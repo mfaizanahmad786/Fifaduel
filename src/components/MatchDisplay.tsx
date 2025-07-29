@@ -2,6 +2,22 @@ import { useEffect, useState } from 'react'
 import type { Team, TeamStats } from '../types'
 import { footballApi, getTeamStatistics } from '../services/footballApi'
 
+
+const LEAGUE_IDS = {
+  'premier-league': 39,
+  'la-liga': 140,
+  'serie-a': 71,
+  'major-league-soccer': 253,
+  'bundesliga': 78
+}
+
+// Simple cache for team statistics to avoid repeated API calls
+const statsCache = new Map<string, TeamStats>()
+
+// Generate cache key for team stats
+const getCacheKey = (teamId: number, leagueId: number, season: number) => 
+  `${teamId}-${leagueId}-${season}`
+
 interface MatchDisplayProps {
   team1: Team
   team2: Team
@@ -36,16 +52,53 @@ export default function MatchDisplay({ team1, team2 }: MatchDisplayProps) {
     const fetchTeamStatistics = async () => {
       setIsLoadingStats(true)
       try {
-        // Using Premier League (id: 39) and season 2023 for both teams
-        // You can modify these values based on the selected league
-        const [stats1, stats2] = await Promise.all([
-          getTeamStatistics(team1.id, 39, 2023),
-          getTeamStatistics(team2.id, 39, 2023)
-        ])
+        const leagueId1 = LEAGUE_IDS[team1.league as keyof typeof LEAGUE_IDS]
+        const leagueId2 = LEAGUE_IDS[team2.league as keyof typeof LEAGUE_IDS]
+        const season = 2023
+
+        // Check cache first
+        const cacheKey1 = getCacheKey(team1.id, leagueId1, season)
+        const cacheKey2 = getCacheKey(team2.id, leagueId2, season)
         
-        setTeam1Stats(stats1)
-        setTeam2Stats(stats2)
-        console.log('Team statistics:', { team1: stats1, team2: stats2 })
+        let stats1 = statsCache.get(cacheKey1)
+        let stats2 = statsCache.get(cacheKey2)
+
+        // Only make API calls for teams not in cache
+        const apiCalls: Promise<TeamStats | null>[] = []
+        
+        if (!stats1) {
+          console.log(`🔄 Fetching stats for ${team1.name} (API call)`)
+          apiCalls.push(getTeamStatistics(team1.id, leagueId1, season))
+        } else {
+          console.log(`✅ Using cached stats for ${team1.name}`)
+          apiCalls.push(Promise.resolve(stats1))
+        }
+        
+        if (!stats2) {
+          console.log(`🔄 Fetching stats for ${team2.name} (API call)`)
+          apiCalls.push(getTeamStatistics(team2.id, leagueId2, season))
+        } else {
+          console.log(`✅ Using cached stats for ${team2.name}`)
+          apiCalls.push(Promise.resolve(stats2))
+        }
+        
+        const [newStats1, newStats2] = await Promise.all(apiCalls)
+        
+        // Cache the new results
+        if (newStats1 && !stats1) {
+          statsCache.set(cacheKey1, newStats1)
+        }
+        if (newStats2 && !stats2) {
+          statsCache.set(cacheKey2, newStats2)
+        }
+        
+        setTeam1Stats(newStats1)
+        setTeam2Stats(newStats2)
+        console.log('Team statistics loaded:', { 
+          team1: newStats1 ? 'loaded' : 'fallback', 
+          team2: newStats2 ? 'loaded' : 'fallback',
+          cacheSize: statsCache.size
+        })
       } catch (error) {
         console.error('Error fetching team statistics:', error)
         // Fallback to null if API fails
